@@ -232,6 +232,9 @@ static const int a15irqmap[] = {
     [VIRT_PLATFORM_BUS] = 112, /* ...to 112 + PLATFORM_BUS_NUM_IRQS -1 */
 };
 
+static const uint16_t smmuv3_peri_sidmap[] = {
+};
+
 static void create_randomness(MachineState *ms, const char *node)
 {
     struct {
@@ -1425,6 +1428,7 @@ static void create_smmu(const VirtMachineState *vms,
     const char irq_names[] = "eventq\0priq\0cmdq-sync\0gerror";
     DeviceState *dev;
     MachineState *ms = MACHINE(vms);
+    QList *smmuv3_peri_sidmap_count;
 
     if (vms->iommu != VIRT_IOMMU_SMMUV3 || !vms->iommu_phandle) {
         return;
@@ -1434,6 +1438,13 @@ static void create_smmu(const VirtMachineState *vms,
 
     object_property_set_link(OBJECT(dev), "primary-bus", OBJECT(bus),
                              &error_abort);
+
+    smmuv3_peri_sidmap_count = qlist_new();
+    for (i = 0; i < ARRAY_SIZE(smmuv3_peri_sidmap); i++) {
+        qlist_append_int(smmuv3_peri_sidmap_count, smmuv3_peri_sidmap[i]);
+    }
+    qdev_prop_set_array(dev, "peri-sid-map", smmuv3_peri_sidmap_count);
+
     sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
     sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, base);
     for (i = 0; i < NUM_SMMU_IRQS; i++) {
@@ -3284,6 +3295,8 @@ static void virt_instance_init(Object *obj)
     vms->dtb_randomness = true;
 
     vms->irqmap = a15irqmap;
+
+    vms->peri_sidmap = smmuv3_peri_sidmap;
 
     virt_flash_create(vms);
 
