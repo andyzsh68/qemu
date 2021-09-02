@@ -1361,13 +1361,16 @@ static int smmuv3_cmdq_consume(SMMUv3State *s)
                 break;
             }
 
-            if (!sdev) {
-                break;
+            if (sdev) {
+                trace_smmuv3_cmdq_cfgi_ste(sid);
+                smmuv3_flush_config(sdev);
             }
 
-            trace_smmuv3_cmdq_cfgi_ste(sid);
-            smmuv3_flush_config(sdev);
-
+            sdev = smmu_find_peri_sdev(bs, sid);
+            if (sdev) {
+                trace_smmuv3_cmdq_cfgi_ste(sid);
+                smmuv3_flush_config(sdev);
+            }
             break;
         }
         case SMMU_CMD_CFGI_STE_RANGE: /* same as SMMU_CMD_CFGI_ALL */
@@ -1401,12 +1404,16 @@ static int smmuv3_cmdq_consume(SMMUv3State *s)
                 break;
             }
 
-            if (!sdev) {
-                break;
+            if (sdev) {
+                trace_smmuv3_cmdq_cfgi_cd(sid);
+                smmuv3_flush_config(sdev);
             }
 
-            trace_smmuv3_cmdq_cfgi_cd(sid);
-            smmuv3_flush_config(sdev);
+            sdev = smmu_find_peri_sdev(bs, sid);
+            if (sdev) {
+                trace_smmuv3_cmdq_cfgi_cd(sid);
+                smmuv3_flush_config(sdev);
+            }
             break;
         }
         case SMMU_CMD_TLBI_NH_ASID:
