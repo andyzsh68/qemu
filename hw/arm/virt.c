@@ -170,10 +170,12 @@ static const MemMapEntry base_memmap[] = {
     /* This redistributor space allows up to 2*64kB*123 CPUs */
     [VIRT_GIC_REDIST] =         { 0x080A0000, 0x00F60000 },
     [VIRT_UART0] =              { 0x09000000, 0x00001000 },
+    [VIRT_UART1] =              { 0x09001000, 0x00001000 },
+    [VIRT_UART2] =              { 0x09002000, 0x00001000 },
     [VIRT_RTC] =                { 0x09010000, 0x00001000 },
     [VIRT_FW_CFG] =             { 0x09020000, 0x00000018 },
     [VIRT_GPIO] =               { 0x09030000, 0x00001000 },
-    [VIRT_UART1] =              { 0x09040000, 0x00001000 },
+    [VIRT_UART3] =              { 0x09040000, 0x00001000 },
     [VIRT_SMMU] =               { 0x09050000, 0x00020000 },
     [VIRT_PCDIMM_ACPI] =        { 0x09070000, MEMORY_HOTPLUG_IO_LEN },
     [VIRT_ACPI_GED] =           { 0x09080000, ACPI_GED_EVT_SEL_LEN },
@@ -220,8 +222,10 @@ static const int a15irqmap[] = {
     [VIRT_RTC] = 2,
     [VIRT_PCIE] = 3, /* ... to 6 */
     [VIRT_GPIO] = 7,
-    [VIRT_UART1] = 8,
+    [VIRT_UART3] = 8,
     [VIRT_ACPI_GED] = 9,
+    [VIRT_UART1] = 10,
+    [VIRT_UART2] = 11,
     [VIRT_MMIO] = 16, /* ...to 16 + NUM_VIRTIO_TRANSPORTS - 1 */
     [VIRT_GIC_V2M] = 48, /* ...to 48 + NUM_GICV2M_SPIS - 1 */
     [VIRT_SMMU] = 74,    /* ...to 74 + NUM_SMMU_IRQS - 1 */
@@ -957,8 +961,12 @@ static void create_uart(const VirtMachineState *vms, int uart,
     if (uart == VIRT_UART0) {
         qemu_fdt_setprop_string(ms->fdt, "/chosen", "stdout-path", nodename);
         qemu_fdt_setprop_string(ms->fdt, "/aliases", "serial0", nodename);
-    } else {
+    } else if (uart == VIRT_UART1) {
         qemu_fdt_setprop_string(ms->fdt, "/aliases", "serial1", nodename);
+    } else if (uart == VIRT_UART2) {
+        qemu_fdt_setprop_string(ms->fdt, "/aliases", "serial2", nodename);
+    }else {
+        qemu_fdt_setprop_string(ms->fdt, "/aliases", "serial3", nodename);
     }
     if (secure) {
         /* Mark as not usable by the normal world */
@@ -2356,16 +2364,18 @@ static void machvirt_init(MachineState *machine)
      * that's what QEMU has always done.
      */
     if (!vms->secure) {
-        Chardev *serial1 = serial_hd(1);
+        Chardev *serial3 = serial_hd(3);
 
-        if (serial1) {
+        if (serial3) {
             vms->second_ns_uart_present = true;
-            create_uart(vms, VIRT_UART1, sysmem, serial1, false);
+            create_uart(vms, VIRT_UART3, sysmem, serial3, false);
         }
     }
     create_uart(vms, VIRT_UART0, sysmem, serial_hd(0), false);
+    create_uart(vms, VIRT_UART1, sysmem, serial_hd(1), false);
+    create_uart(vms, VIRT_UART2, sysmem, serial_hd(2), false);
     if (vms->secure) {
-        create_uart(vms, VIRT_UART1, secure_sysmem, serial_hd(1), true);
+        create_uart(vms, VIRT_UART3, secure_sysmem, serial_hd(3), true);
     }
 
     if (vms->secure) {
