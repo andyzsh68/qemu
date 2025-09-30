@@ -37,7 +37,7 @@ jobs:
               git checkout -b $branch $remote_branch
             fi
           
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} $branch --force-with-lease
+            git push --mirror https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} $branch --force-with-lease
           done
 
       - name: Sync tags
