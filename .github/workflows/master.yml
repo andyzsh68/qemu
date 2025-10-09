@@ -32,11 +32,11 @@ jobs:
               else
                 git rebase $remote_branch || git rebase --abort
               fi
-              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} $branch --force-with-lease
+              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} refs/heads/$branch:refs/heads/$branch --force-with-lease
             else
               git checkout -b $branch $remote_branch
               git fetch origin $branch || true
-              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} $branch
+              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} refs/heads/$branch:refs/heads/$branch
             fi
           done
       - name: Sync tags
