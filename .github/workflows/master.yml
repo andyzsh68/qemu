@@ -17,9 +17,8 @@ jobs:
 
       - name: Add upstream
         run: |
-          git remote add upstream https://github.com/qemu/qemu.git
+          git remote add upstream https://github.com/buildroot/buildroot.git
           git fetch upstream --prune --tags
-
       - name: Sync all upstream branches
         run: |
           for remote_branch in $(git for-each-ref --format='%(refname:short)' refs/remotes/upstream/*); do
@@ -33,13 +32,13 @@ jobs:
               else
                 git rebase $remote_branch || git rebase --abort
               fi
+              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} $branch --force-with-lease
             else
               git checkout -b $branch $remote_branch
+              git fetch origin $branch || true
+              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} $branch
             fi
-          
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} $branch --force-with-lease
           done
-
       - name: Sync tags
         run: |
           git config user.name "github-actions[bot]"
