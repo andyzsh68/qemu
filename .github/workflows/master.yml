@@ -17,7 +17,7 @@ jobs:
 
       - name: Add upstream
         run: |
-          git remote add upstream https://github.com/buildroot/buildroot.git
+          git remote add upstream https://github.com/qemu/qemu.git
           git fetch upstream --prune --tags
       - name: Sync all upstream branches
         run: |
