@@ -21,8 +21,7 @@
 #include "trace.h"
 #include "exec/log.h"
 #include "exec/page-protection.h"
-#include "exec/tb-flush.h"
-#include "exec/translation-block.h"
+#include "exec/mmap-lock.h"
 #include "qemu.h"
 #include "user/page-protection.h"
 #include "user-internals.h"
@@ -644,7 +643,7 @@ static abi_long mmap_h_eq_g(abi_ulong start, abi_ulong len,
  *
  * However, this case is rather common with executable images,
  * so the workaround is important for even trivial tests, whereas
- * the mmap of of a file being extended is less common.
+ * the mmap of a file being extended is less common.
  */
 static abi_long mmap_h_lt_g(abi_ulong start, abi_ulong len, int host_prot,
                             int mmap_flags, int page_flags, int fd,
@@ -1006,11 +1005,7 @@ abi_long target_mmap(abi_ulong start, abi_ulong len, int target_prot,
      * be atomic with respect to an external process.
      */
     if (ret != -1 && (flags & MAP_TYPE) != MAP_PRIVATE) {
-        CPUState *cpu = thread_cpu;
-        if (!tcg_cflags_has(cpu, CF_PARALLEL)) {
-            tcg_cflags_set(cpu, CF_PARALLEL);
-            tb_flush(cpu);
-        }
+        begin_parallel_context(thread_cpu);
     }
 
     return ret;
@@ -1447,10 +1442,7 @@ abi_ulong target_shmat(CPUArchState *cpu_env, int shmid,
      * supported by the host -- anything that requires EXCP_ATOMIC will not
      * be atomic with respect to an external process.
      */
-    if (!tcg_cflags_has(cpu, CF_PARALLEL)) {
-        tcg_cflags_set(cpu, CF_PARALLEL);
-        tb_flush(cpu);
-    }
+    begin_parallel_context(cpu);
 
     if (qemu_loglevel_mask(CPU_LOG_PAGE)) {
         FILE *f = qemu_log_trylock();

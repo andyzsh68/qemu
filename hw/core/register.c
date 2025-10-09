@@ -314,12 +314,11 @@ RegisterInfoArray *register_init_block64(DeviceState *owner,
 
 void register_finalize_block(RegisterInfoArray *r_array)
 {
-    object_unparent(OBJECT(&r_array->mem));
     g_free(r_array->r);
     g_free(r_array);
 }
 
-static void register_class_init(ObjectClass *oc, void *data)
+static void register_class_init(ObjectClass *oc, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(oc);
 

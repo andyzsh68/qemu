@@ -116,11 +116,7 @@ static void virtio_scsi_complete_req(VirtIOSCSIReq *req, QemuMutex *vq_lock)
     }
 
     virtqueue_push(vq, &req->elem, req->qsgl.size + req->resp_iov.size);
-    if (s->dataplane_started && !s->dataplane_fenced) {
-        virtio_notify_irqfd(vdev, vq);
-    } else {
-        virtio_notify(vdev, vq);
-    }
+    virtio_notify(vdev, vq);
 
     if (vq_lock) {
         qemu_mutex_unlock(vq_lock);
@@ -1395,7 +1391,7 @@ static const VMStateDescription vmstate_virtio_scsi = {
     },
 };
 
-static void virtio_scsi_common_class_init(ObjectClass *klass, void *data)
+static void virtio_scsi_common_class_init(ObjectClass *klass, const void *data)
 {
     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -1404,7 +1400,7 @@ static void virtio_scsi_common_class_init(ObjectClass *klass, void *data)
     set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
 }
 
-static void virtio_scsi_class_init(ObjectClass *klass, void *data)
+static void virtio_scsi_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
@@ -1438,7 +1434,7 @@ static const TypeInfo virtio_scsi_info = {
     .parent = TYPE_VIRTIO_SCSI_COMMON,
     .instance_size = sizeof(VirtIOSCSI),
     .class_init = virtio_scsi_class_init,
-    .interfaces = (InterfaceInfo[]) {
+    .interfaces = (const InterfaceInfo[]) {
         { TYPE_HOTPLUG_HANDLER },
         { }
     }

@@ -379,6 +379,7 @@ static const VMStateDescription vmstate_apic_common = {
     .pre_load = apic_pre_load,
     .pre_save = apic_dispatch_pre_save,
     .post_load = apic_dispatch_post_load,
+    .priority = MIG_PRI_APIC,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(apicbase, APICCommonState),
         VMSTATE_UINT8(id, APICCommonState),
@@ -466,7 +467,7 @@ static void apic_common_initfn(Object *obj)
                         apic_common_set_id, NULL, NULL);
 }
 
-static void apic_common_class_init(ObjectClass *klass, void *data)
+static void apic_common_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
