@@ -37,7 +37,7 @@ _bql_rs = static_library(
   override_options: ['rust_std=2021', 'build.rust_std=2021'],
   rust_abi: 'rust',
   rust_args: _bql_cfg,
-  link_with: [_migration_rs],
+  dependencies: [glib_sys_rs],
 )
 
 bql_rs = declare_dependency(link_with: [_bql_rs],
