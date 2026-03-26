@@ -28,7 +28,7 @@
 #include "vnc.h"
 #include "vnc-jobs.h"
 #include "trace.h"
-#include "hw/qdev-core.h"
+#include "hw/core/qdev.h"
 #include "system/system.h"
 #include "system/runstate.h"
 #include "qemu/error-report.h"
@@ -235,12 +235,12 @@ static VncServerInfo *vnc_server_info_get(VncDisplay *vd)
     VncServerInfo *info;
     Error *err = NULL;
 
-    if (!vd->listener || !vd->listener->nsioc) {
+    if (!vd->listener || !qio_net_listener_nsioc(vd->listener)) {
         return NULL;
     }
 
     info = g_malloc0(sizeof(*info));
-    vnc_init_basic_info_from_server_addr(vd->listener->sioc[0],
+    vnc_init_basic_info_from_server_addr(qio_net_listener_sioc(vd->listener, 0),
                                          qapi_VncServerInfo_base(info), &err);
     info->auth = g_strdup(vnc_auth_name(vd));
     if (err) {
@@ -377,7 +377,7 @@ VncInfo *qmp_query_vnc(Error **errp)
     VncDisplay *vd = vnc_display_find(NULL);
     SocketAddress *addr = NULL;
 
-    if (vd == NULL || !vd->listener || !vd->listener->nsioc) {
+    if (vd == NULL || !vd->listener || !qio_net_listener_nsioc(vd->listener)) {
         info->enabled = false;
     } else {
         info->enabled = true;
@@ -386,8 +386,7 @@ VncInfo *qmp_query_vnc(Error **errp)
         info->has_clients = true;
         info->clients = qmp_query_client_list(vd);
 
-        addr = qio_channel_socket_get_local_address(vd->listener->sioc[0],
-                                                    errp);
+        addr = qio_net_listener_get_local_address(vd->listener, 0, errp);
         if (!addr) {
             goto out_error;
         }
@@ -549,24 +548,36 @@ VncInfo2List *qmp_query_vnc_servers(Error **errp)
     size_t i;
 
     QTAILQ_FOREACH(vd, &vnc_displays, next) {
+        size_t nsioc = 0;
+
         info = g_new0(VncInfo2, 1);
         info->id = g_strdup(vd->id);
         info->clients = qmp_query_client_list(vd);
         qmp_query_auth(vd->auth, vd->subauth, &info->auth,
                        &info->vencrypt, &info->has_vencrypt);
         if (vd->dcl.con) {
-            dev = DEVICE(object_property_get_link(OBJECT(vd->dcl.con),
-                                                  "device", &error_abort));
-            info->display = g_strdup(dev->id);
+            Object *obj = object_property_get_link(OBJECT(vd->dcl.con),
+                                                   "device", NULL);
+            if (obj) {
+                dev = DEVICE(obj);
+                info->display = g_strdup(dev->id);
+            }
         }
-        for (i = 0; vd->listener != NULL && i < vd->listener->nsioc; i++) {
-            info->server = qmp_query_server_entry(
-                vd->listener->sioc[i], false, vd->auth, vd->subauth,
-                info->server);
+        if (vd->listener != NULL) {
+            nsioc = qio_net_listener_nsioc(vd->listener);
         }
-        for (i = 0; vd->wslistener != NULL && i < vd->wslistener->nsioc; i++) {
+        for (i = 0; i < nsioc; i++) {
             info->server = qmp_query_server_entry(
-                vd->wslistener->sioc[i], true, vd->ws_auth,
+                qio_net_listener_sioc(vd->listener, i), false, vd->auth,
+                vd->subauth, info->server);
+        }
+        nsioc = 0;
+        if (vd->wslistener) {
+            nsioc = qio_net_listener_nsioc(vd->wslistener);
+        }
+        for (i = 0; i < nsioc; i++) {
+            info->server = qmp_query_server_entry(
+                qio_net_listener_sioc(vd->wslistener, i), true, vd->ws_auth,
                 vd->ws_subauth, info->server);
         }
 
@@ -578,7 +589,6 @@ VncInfo2List *qmp_query_vnc_servers(Error **errp)
 bool vnc_display_reload_certs(const char *id, Error **errp)
 {
     VncDisplay *vd = vnc_display_find(id);
-    QCryptoTLSCredsClass *creds = NULL;
 
     if (!vd) {
         error_setg(errp, "Can not find vnc display");
@@ -590,13 +600,7 @@ bool vnc_display_reload_certs(const char *id, Error **errp)
         return false;
     }
 
-    creds = QCRYPTO_TLS_CREDS_GET_CLASS(OBJECT(vd->tlscreds));
-    if (creds->reload == NULL) {
-        error_setg(errp, "%s doesn't support to reload TLS credential",
-                   object_get_typename(OBJECT(vd->tlscreds)));
-        return false;
-    }
-    if (!creds->reload(vd->tlscreds, errp)) {
+    if (!qcrypto_tls_creds_reload(vd->tlscreds, errp)) {
         return false;
     }
 
@@ -1276,7 +1280,7 @@ static void audio_add(VncState *vs)
     ops.destroy = audio_capture_destroy;
     ops.capture = audio_capture;
 
-    vs->audio_cap = AUD_add_capture(vs->vd->audio_be, &vs->as, &ops, vs);
+    vs->audio_cap = audio_be_add_capture(vs->vd->audio_be, &vs->as, &ops, vs);
     if (!vs->audio_cap) {
         error_report("Failed to add audio capture");
     }
@@ -1285,7 +1289,7 @@ static void audio_add(VncState *vs)
 static void audio_del(VncState *vs)
 {
     if (vs->audio_cap) {
-        AUD_del_capture(vs->audio_cap, vs);
+        audio_be_del_capture(vs->vd->audio_be, vs->audio_cap, vs);
         vs->audio_cap = NULL;
     }
 }
@@ -3368,7 +3372,7 @@ static void vnc_connect(VncDisplay *vd, QIOChannelSocket *sioc,
     vs->as.freq = 44100;
     vs->as.nchannels = 2;
     vs->as.fmt = AUDIO_FORMAT_S16;
-    vs->as.endianness = 0;
+    vs->as.big_endian = false;
 
     qemu_mutex_init(&vs->output_mutex);
     vs->bh = qemu_bh_new(vnc_jobs_bh, vs);
@@ -3522,16 +3526,20 @@ static void vnc_display_close(VncDisplay *vd)
 #endif
 }
 
-int vnc_display_password(const char *id, const char *password)
+int vnc_display_password(const char *id, const char *password, Error **errp)
 {
     VncDisplay *vd = vnc_display_find(id);
 
     if (!vd) {
+        error_setg(errp, "No VNC display is present");
+        error_append_hint(errp,
+                          "To enable it, use '-vnc ...'");
         return -EINVAL;
     }
     if (vd->auth == VNC_AUTH_NONE) {
-        error_printf_unless_qmp("If you want use passwords please enable "
-                                "password auth using '-vnc ${dpy},password'.\n");
+        error_setg(errp, "VNC password authentication is disabled");
+        error_append_hint(errp,
+                          "To enable it, use '-vnc ...,password-secret=ID'");
         return -EINVAL;
     }
 
@@ -3557,11 +3565,11 @@ static void vnc_display_print_local_addr(VncDisplay *vd)
 {
     SocketAddress *addr;
 
-    if (!vd->listener || !vd->listener->nsioc) {
+    if (!vd->listener || !qio_net_listener_nsioc(vd->listener)) {
         return;
     }
 
-    addr = qio_channel_socket_get_local_address(vd->listener->sioc[0], NULL);
+    addr = qio_net_listener_get_local_address(vd->listener, 0, NULL);
     if (!addr) {
         return;
     }
@@ -3570,9 +3578,9 @@ static void vnc_display_print_local_addr(VncDisplay *vd)
         qapi_free_SocketAddress(addr);
         return;
     }
-    error_printf_unless_qmp("VNC server running on %s:%s\n",
-                            addr->u.inet.host,
-                            addr->u.inet.port);
+    error_printf("VNC server running on %s:%s\n",
+                 addr->u.inet.host,
+                 addr->u.inet.port);
     qapi_free_SocketAddress(addr);
 }
 

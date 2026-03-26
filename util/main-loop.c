@@ -30,7 +30,7 @@
 #include "exec/icount.h"
 #include "system/replay.h"
 #include "qemu/main-loop.h"
-#include "block/aio.h"
+#include "qemu/aio.h"
 #include "block/thread-pool.h"
 #include "qemu/error-report.h"
 #include "qemu/queue.h"
@@ -162,7 +162,7 @@ int qemu_init_main_loop(Error **errp)
     int ret;
     GSource *src;
 
-    init_clocks(qemu_timer_notify_cb);
+    qemu_init_clocks(qemu_timer_notify_cb);
 
     ret = qemu_signal_init(errp);
     if (ret) {

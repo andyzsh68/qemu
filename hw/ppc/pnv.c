@@ -38,8 +38,8 @@
 #include "hw/ppc/ppc.h"
 #include "hw/ppc/pnv.h"
 #include "hw/ppc/pnv_core.h"
-#include "hw/loader.h"
-#include "hw/nmi.h"
+#include "hw/core/loader.h"
+#include "hw/core/nmi.h"
 #include "qapi/visitor.h"
 #include "hw/intc/intc.h"
 #include "hw/ipmi/ipmi.h"
@@ -50,7 +50,7 @@
 #include "hw/pci-host/pnv_phb4.h"
 
 #include "hw/ppc/xics.h"
-#include "hw/qdev-properties.h"
+#include "hw/core/qdev-properties.h"
 #include "hw/ppc/pnv_chip.h"
 #include "hw/ppc/pnv_xscom.h"
 #include "hw/ppc/pnv_pnor.h"
@@ -58,6 +58,7 @@
 #include "hw/isa/isa.h"
 #include "hw/char/serial-isa.h"
 #include "hw/rtc/mc146818rtc.h"
+#include "exec/cpu-common.h"
 
 #include <libfdt.h>
 
@@ -772,26 +773,8 @@ static void pnv_reset(MachineState *machine, ResetType type)
         }
     }
 
-    if (machine->fdt) {
-        fdt = machine->fdt;
-    } else {
-        fdt = pnv_dt_create(machine);
-        /* Pack resulting tree */
-        _FDT((fdt_pack(fdt)));
-    }
-
+    fdt = machine->fdt;
     cpu_physical_memory_write(PNV_FDT_ADDR, fdt, fdt_totalsize(fdt));
-
-    /* Update machine->fdt with latest fdt */
-    if (machine->fdt != fdt) {
-        /*
-         * Set machine->fdt for 'dumpdtb' QMP/HMP command. Free
-         * the existing machine->fdt to avoid leaking it during
-         * a reset.
-         */
-        g_free(machine->fdt);
-        machine->fdt = fdt;
-    }
 }
 
 static ISABus *pnv_chip_power8_isa_create(PnvChip *chip, Error **errp)
@@ -1259,6 +1242,11 @@ static void pnv_init(MachineState *machine)
      */
     if (pmc->i2c_init) {
         pmc->i2c_init(pnv);
+    }
+
+    if (!machine->fdt) {
+        machine->fdt = pnv_dt_create(machine);
+        _FDT((fdt_pack(machine->fdt)));
     }
 }
 

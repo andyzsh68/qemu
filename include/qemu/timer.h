@@ -6,6 +6,7 @@
 #include "qemu/host-utils.h"
 
 #define NANOSECONDS_PER_SECOND 1000000000LL
+#define MICROSECONDS_PER_SECOND 1000000LL
 
 /* timers */
 
@@ -786,11 +787,12 @@ static inline int64_t qemu_soonest_timeout(int64_t timeout1, int64_t timeout2)
 }
 
 /**
- * initclocks:
+ * qemu_init_clocks:
+ * @notify_cb: optional call-back for timer expiry
  *
  * Initialise the clock & timer infrastructure
  */
-void init_clocks(QEMUTimerListNotifyCB *notify_cb);
+void qemu_init_clocks(QEMUTimerListNotifyCB *notify_cb);
 
 static inline int64_t get_max_clock_jump(void)
 {
@@ -863,15 +865,6 @@ static inline int64_t cpu_get_host_ticks(void)
                           "beq-    $-8"
                           : "=r" (retval));
     return retval;
-}
-
-#elif defined(__i386__)
-
-static inline int64_t cpu_get_host_ticks(void)
-{
-    int64_t val;
-    asm volatile ("rdtsc" : "=A" (val));
-    return val;
 }
 
 #elif defined(__x86_64__)
